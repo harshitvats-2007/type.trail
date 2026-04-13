@@ -4,78 +4,169 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>type.trail</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Rye&family=Special+Elite&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6889714122381723" crossorigin="anonymous"></script>
 </head>
-<body>
+<body class="mine-theme">
     <div id="flash-overlay"></div>
     
     <div id="ui-layer" style="display: none;">
-        <div class="stats-panel">
-            <div class="brand-tag">type.trail // SYSTEM</div>
-            <div class="stat-group">
-                <div class="stat">SHIPPED: <span id="scoreVal">0</span></div>
-                <div class="stat missed">MISSED: <span id="missedVal">0</span>/10</div>
+        <div class="hud-container">
+            <div class="hud-left">
+                <div class="hud-label">PLAYER</div>
+                <div class="hud-value lantern-text">GUEST_01</div>
             </div>
-            <div class="stat-group">
-                <div class="stat speed">WPM: <span id="wpmVal">0</span></div>
-                <div class="stat acc">ACC: <span id="accVal">100</span>%</div>
-                <div class="stat combo">MULT: x<span id="comboVal">1</span></div>
+            <div class="hud-center" style="display: flex; gap: 30px;">
+                <div class="hud-stat">
+                    <span>SCORE</span>
+                    <div id="scoreVal" class="lantern-text">0</div>
+                </div>
+                <div class="hud-stat" style="color: #ffd700;">
+                    <span style="color: #d4af37;">DYNAMITE (ENTER)</span>
+                    <div id="powerupVal" class="lantern-text" style="text-shadow: 0 0 15px #ffd700;">2</div>
+                </div>
+                <div class="hud-stat danger">
+                    <span>MISSED</span>
+                    <div id="missedVal">0/5</div>
+                </div>
             </div>
+            <div class="hud-right">
+                <div class="hud-mini-stat">SPEED: <span id="wpmVal">0</span> WPM</div>
+                <div class="hud-mini-stat">ACCURACY: <span id="accVal">100</span>%</div>
+                <div id="combo-tag">MULTIPLIER: x<span id="comboVal">1</span></div>
+            </div>
+        </div>
+        
+        <div id="mobile-blast-btn" class="hidden" style="position: absolute; bottom: 220px; right: 20px; z-index: 50;">
+            <button class="mine-btn" style="padding: 10px 20px; font-size: 16px; border-radius: 8px;">🧨 BLAST (ENTER)</button>
         </div>
     </div>
 
     <div id="menu-layer">
-        <div class="menu-box">
-            <h1 id="menu-title">type.trail</h1>
-            <p id="menu-subtitle">System ready. Prepare for order influx.</p>
+        <div class="sys-panel wood-border">
+            <header>
+                <h1 id="menu-title" class="lantern-text">type.trail</h1>
+                <div class="sys-status">STATUS: [ <span style="color:#ffd700;">READY</span> ]</div>
+            </header>
             
-            <div id="leaderboard-container">
-                <div class="lb-header">GLOBAL TOP 5</div>
-                <div id="leaderboard-list">SYNCING_SYSTEM_DATA...</div>
-            </div>
+            <div class="split-layout">
+                <div class="layout-col">
+                    <div class="leaderboard-section">
+                        <div class="section-header">LEADERBOARD</div>
+                        <div id="leaderboard-list">LOADING SCORES...</div>
+                    </div>
+                    
+                    <div class="user-best-box">
+                        <span class="label">BEST SCORE</span>
+                        <span id="highScoreVal" class="lantern-text">000</span>
+                    </div>
+                </div>
 
-            <h3 id="high-score-display">YOUR BEST: <span id="highScoreVal">0</span></h3>
+                <div class="layout-col">
+                    <div class="control-group">
+                        <label class="section-header">SETTINGS</label>
+                        <div class="toggle-container">
+                            <input type="checkbox" id="training-toggle">
+                            <label for="training-toggle">Show Keyboard Guide</label>
+                        </div>
+                        <button id="tutorial-open-btn" class="sm-btn" style="width: 100%; margin-top: 5px;">HOW TO PLAY (TUTORIAL)</button>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="section-header">TEXT OPTIONS</label>
+                        <select id="preset-selector" class="wood-select">
+                            <option value="random">Random Words</option>
+                            <option value="p1">Story 1: The Shallow Shaft</option>
+                            <option value="p2">Story 2: Striking Gold</option>
+                            <option value="p3">Story 3: Deep Pressure</option>
+                            <option value="p4">Story 4: Cave Collapse</option>
+                            <option value="p5">Story 5: The Motherlode</option>
+                            <option value="custom">Custom Text</option>
+                        </select>
+                        <textarea id="custom-text-input" class="hidden" placeholder="Paste your custom text here..."></textarea>
+                    </div>
+
+                    <button id="start-btn" class="mine-btn">START GAME</button>
+                </div>
+            </div>
             
             <div id="final-results" style="display: none;">
-                <h2 id="final-score">TOTAL SHIPPED: <span>0</span></h2>
-                <h3 id="final-stats">SPEED: <span id="finalWpm">0</span> WPM | ACCURACY: <span id="finalAcc">100</span>%</h3>
+                <div class="result-grid">
+                    <div class="res-card"><span>SCORE</span><div id="res-score">0</div></div>
+                    <div class="res-card"><span>SPEED</span><div id="finalWpm">0</div></div>
+                    <div class="res-card"><span>ACCURACY</span><div id="finalAcc">0</div>%</div>
+                </div>
             </div>
 
-            <div class="ad-space">
-                <ins class="adsbygoogle"
-                     style="display:block"
-                     data-ad-client="ca-pub-6889714122381723"
-                     data-ad-slot="7541354744"
-                     data-ad-format="auto"
-                     data-full-width-responsive="true"></ins>
-                <script>
-                     (adsbygoogle = window.adsbygoogle || []).push({});
-                </script>
+            <footer style="margin-top:15px; text-align:center;">
+                <a href="privacy.html" class="micro-text">PRIVACY POLICY</a>
+            </footer>
+        </div>
+    </div>
+
+    <div id="tutorial-modal" class="hidden" style="position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; z-index: 100; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px);">
+        <div class="sys-panel" style="width: 700px; padding: 25px;">
+            <h2 class="lantern-text" style="text-align: center; margin-top: 0;">HOW TO PLAY</h2>
+            <p style="text-align: center; color: #a68a77;">Rest your fingers on the <strong>HOME ROW (A S D F - J K L ;)</strong>.</p>
+            
+            <div class="hand-diagram" style="display: flex; justify-content: space-around; margin: 20px 0; background: rgba(0,0,0,0.4); border: 2px inset #3e2723; padding: 20px 10px; border-radius: 8px;">
+                <div class="hand" style="text-align: center;">
+                    <div style="font-family: 'Rye'; color: var(--primary); margin-bottom: 10px; border-bottom: 1px dashed #5c3a21;">LEFT HAND</div>
+                    <div style="display: flex; align-items: flex-end; gap: 8px; justify-content: center; height: 100px;">
+                        <div class="finger" style="background: var(--f-pinky-l); height: 50px;"><span>A</span></div>
+                        <div class="finger" style="background: var(--f-ring-l); height: 65px;"><span>S</span></div>
+                        <div class="finger" style="background: var(--f-mid-l); height: 75px;"><span>D</span></div>
+                        <div class="finger" style="background: var(--f-index-l); height: 65px;"><span>F</span></div>
+                        <div class="thumb" style="transform: rotate(-15deg); margin-left: 10px;"><span>SPACE</span></div>
+                    </div>
+                </div>
+                <div class="hand" style="text-align: center;">
+                    <div style="font-family: 'Rye'; color: var(--primary); margin-bottom: 10px; border-bottom: 1px dashed #5c3a21;">RIGHT HAND</div>
+                    <div style="display: flex; align-items: flex-end; gap: 8px; justify-content: center; height: 100px;">
+                        <div class="thumb" style="transform: rotate(15deg); margin-right: 10px;"><span>SPACE</span></div>
+                        <div class="finger" style="background: var(--f-index-r); height: 65px;"><span>J</span></div>
+                        <div class="finger" style="background: var(--f-mid-r); height: 75px;"><span>K</span></div>
+                        <div class="finger" style="background: var(--f-ring-r); height: 65px;"><span>L</span></div>
+                        <div class="finger" style="background: var(--f-pinky-r); height: 50px;"><span>;</span></div>
+                    </div>
+                </div>
             </div>
 
-            <button id="start-btn">START SHIFT</button>
+            <ul style="color: #d4c4b7; font-size: 14px; line-height: 1.6;">
+                <li><strong>OBJECTIVE:</strong> Type the words before they reach the edge. The game gets <strong>faster</strong> over time!</li>
+                <li><strong>GOLDEN CARTS:</strong> Type a Golden Cart to earn +1 Dynamite.</li>
+                <li><strong>DYNAMITE:</strong> Press <strong>ENTER</strong> to detonate and clear all carts on the screen.</li>
+                <li><strong>GAME OVER:</strong> If you miss 5 words, the game ends.</li>
+            </ul>
 
-            <div style="margin-top:15px;">
-                <a href="privacy.html" style="color:#555; text-decoration:none; font-size:10px; letter-spacing:1px;">ACCESS_PRIVACY_PROTOCOL</a>
-            </div>
+            <button id="tutorial-close-btn" class="mine-btn" style="width: 100%; font-size: 18px; padding: 10px;">CLOSE TUTORIAL</button>
+        </div>
+    </div>
+
+    <div id="revive-layer" class="hidden" style="position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; z-index: 60; background: rgba(0,0,0,0.9); backdrop-filter: blur(5px);">
+        <div class="sys-panel wood-border" style="text-align: center; width: 500px;">
+            <h2 class="lantern-text" style="font-size: 40px; margin-top: 0;">GAME OVER?</h2>
+            <p style="color: #a68a77; font-size: 18px; margin-bottom: 30px;">You missed 5 words! Watch a short ad to continue your game and save your score?</p>
+            <button id="watch-ad-btn" class="mine-btn" style="width: 100%; margin-bottom: 15px; font-size: 20px;">WATCH AD TO CONTINUE</button>
+            <button id="skip-ad-btn" class="sm-btn" style="width: 100%; padding: 15px; background: transparent; color: #8c7b6d; border-color: #3e2723;">NO THANKS (END GAME)</button>
+        </div>
+    </div>
+
+    <div id="sim-ad-layer" class="hidden" style="position: fixed; inset: 0; display: flex; justify-content: center; align-items: center; z-index: 70; background: #000;">
+        <div style="text-align: center; border: 2px dashed #5c3a21; padding: 50px; width: 80%;">
+            <h2 style="color: #fff; font-family: 'Special Elite', monospace;">[ ADVERTISEMENT ]</h2>
+            <p style="color: var(--primary); font-size: 24px; font-family: 'Rye', cursive;">Resuming game in: <span id="ad-timer" style="font-size: 40px; font-weight: bold;">5</span></p>
         </div>
     </div>
 
     <div id="virtual-keyboard" style="display: none;">
-        <div class="kb-row">
-            <button class="key">q</button><button class="key">w</button><button class="key">e</button><button class="key">r</button><button class="key">t</button><button class="key">y</button><button class="key">u</button><button class="key">i</button><button class="key">o</button><button class="key">p</button>
-        </div>
-        <div class="kb-row">
-            <button class="key">a</button><button class="key">s</button><button class="key">d</button><button class="key">f</button><button class="key">g</button><button class="key">h</button><button class="key">j</button><button class="key">k</button><button class="key">l</button>
-        </div>
-        <div class="kb-row">
-            <button class="key">z</button><button class="key">x</button><button class="key">c</button><button class="key">v</button><button class="key">b</button><button class="key">n</button><button class="key">m</button>
-        </div>
+        <div class="kb-row" id="row-1"></div>
+        <div class="kb-row" id="row-2"></div>
+        <div class="kb-row" id="row-3"></div>
     </div>
 
     <canvas id="gameCanvas"></canvas>

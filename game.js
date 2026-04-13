@@ -1,4 +1,4 @@
-// --- FIREBASE INITIALIZATION ---
+// --- FIREBASE CONFIG ---
 const firebaseConfig = {
     apiKey: "AIzaSyBJLe3ijqtluFB8_DPcf1bM55pIdPx1TI8",
     authDomain: "type-trail.firebaseapp.com",
@@ -8,210 +8,445 @@ const firebaseConfig = {
     messagingSenderId: "754135474412",
     appId: "1:754135474412:web:f3553cfa9c4060e1cec5c9"
 };
-
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
-// UI Selection
-const scoreElement = document.getElementById('scoreVal');
-const missedElement = document.getElementById('missedVal');
-const comboElement = document.getElementById('comboVal');
-const wpmElement = document.getElementById('wpmVal');
-const accElement = document.getElementById('accVal');
-const flashOverlay = document.getElementById('flash-overlay');
-const menuLayer = document.getElementById('menu-layer');
-const uiLayer = document.getElementById('ui-layer');
-const startBtn = document.getElementById('start-btn');
-const menuTitle = document.getElementById('menu-title');
-const menuSubtitle = document.getElementById('menu-subtitle');
-const finalResultsDisplay = document.getElementById('final-results');
-const finalScoreDisplay = document.querySelector('#final-score span');
-const finalWpmDisplay = document.getElementById('finalWpm');
-const finalAccDisplay = document.getElementById('finalAcc');
-const highScoreElement = document.getElementById('highScoreVal');
-const leaderboardList = document.getElementById('leaderboard-list');
-const virtualKeyboard = document.getElementById('virtual-keyboard');
+// --- STATE ---
+let gameRunning = false; let score = 0; let missed = 0; let combo = 1;
+let carts = []; let stamps = []; let particles = []; let currentTarget = null;
+let lastTime = 0; let spawnTimer = 0;
+let totalKeys = 0; let correctKeys = 0; let shiftStartTime = 0;
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+let trainingMode = false; let customBuffer = []; let lanes = [];
+let hasRevived = false; const MAX_MISSES = 5; 
+let powerups = 2; // START WITH 2 DYNAMITE
 
-let gameRunning = false;
-let gameOver = false;
-let score = 0;
-let missed = 0;
-let combo = 1;
-let boxes = [];
-let stamps = [];
-let currentTarget = null;
-let lastTime = 0;
-let spawnTimer = 0;
+// --- AUDIO SYNTHESIZER ---
 let audioCtx = null;
-let totalKeys = 0;
-let correctKeys = 0;
-let shiftStartTime = 0;
 
-let highScore = localStorage.getItem('typeTrailHighScore') || 0;
-highScoreElement.innerText = highScore;
-
-const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-// --- LEADERBOARD LOGIC ---
-function saveScore(name, finalScore) {
-    database.ref('leaderboard').push({
-        name: name,
-        score: finalScore,
-        timestamp: Date.now()
-    });
-}
-
-function loadLeaderboard() {
-    database.ref('leaderboard').orderByChild('score').limitToLast(5).on('value', (snapshot) => {
-        let scores = [];
-        snapshot.forEach((child) => { scores.push(child.val()); });
-        scores.reverse();
-        leaderboardList.innerHTML = "";
-        scores.forEach((entry, index) => {
-            leaderboardList.innerHTML += `<div>${index+1}. ${entry.name.toUpperCase()} <span>${entry.score}</span></div>`;
-        });
-    });
-}
-loadLeaderboard();
-
-// --- AUDIO SYNTH ---
-function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-function playSound(type) {
-    if (!audioCtx || audioCtx.state === 'suspended') return;
-    const osc = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    osc.connect(gainNode); gainNode.connect(audioCtx.destination);
-    if (type === 'type') { osc.type = 'square'; osc.frequency.setValueAtTime(400, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.05); gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05); osc.start(); osc.stop(audioCtx.currentTime + 0.05); }
-    else if (type === 'stamp') { osc.type = 'sine'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.3); gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime); gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3); osc.start(); osc.stop(audioCtx.currentTime + 0.3); }
-    else if (type === 'error') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, audioCtx.currentTime); gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime); gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2); osc.start(); osc.stop(audioCtx.currentTime + 0.2); }
-}
-
-// --- WORD API ---
-let wordBuffer = []; 
-let isFetching = false;
-async function fetchParagraphs() {
-    if (isFetching) return; isFetching = true;
-    try {
-        const response = await fetch('https://dummyjson.com/quotes/random');
-        const data = await response.json();
-        let cleanedWords = data.quote.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(word => word.length > 3 && word.length < 9);
-        wordBuffer = wordBuffer.concat(cleanedWords);
-    } catch (error) { wordBuffer.push("type", "trail", "system", "speed", "logic"); }
-    finally { isFetching = false; }
-}
-function getUniqueWord() { if (wordBuffer.length < 10) fetchParagraphs(); return wordBuffer.length === 0 ? "loading" : wordBuffer.shift(); }
-fetchParagraphs();
-
-const lanes = isMobile ? [canvas.height * 0.20, canvas.height * 0.35, canvas.height * 0.50] : [canvas.height * 0.25, canvas.height * 0.45, canvas.height * 0.65, canvas.height * 0.85];
-
-class Stamp {
-    constructor(x, y, text, color, isError = false) { this.x = x; this.y = y; this.text = text; this.color = color; this.life = 1.0; this.scale = 2.5; this.targetScale = 1.0; this.rotation = (Math.random() - 0.5) * 0.4; if (isError) this.rotation = (Math.random() - 0.5) * 0.8; }
-    update() { if (this.scale > this.targetScale) this.scale -= 0.3; else this.life -= 0.03; }
-    draw() { ctx.save(); ctx.globalAlpha = Math.max(0, this.life); ctx.translate(this.x, this.y); ctx.rotate(this.rotation); ctx.fillStyle = this.color; ctx.font = `bold ${isMobile ? 30 : 45}px 'Impact'`; ctx.fillText(this.text, 0, 0); ctx.restore(); }
-}
-
-class Box {
-    constructor() { this.word = getUniqueWord(); this.x = -200; this.y = lanes[Math.floor(Math.random() * lanes.length)]; this.speed = (Math.random() * 0.5 + 0.8); this.typedIndex = 0; }
-    update(deltaTime, globalSpeedMult) { this.x += this.speed * globalSpeedMult * (deltaTime * 0.1); }
-    draw() {
-        ctx.font = isMobile ? "24px 'Impact'" : "32px 'Impact'";
-        let boxWidth = ctx.measureText(this.word).width + (isMobile ? 40 : 60);
-        let boxHeight = isMobile ? 45 : 65;
-        let yOffset = isMobile ? 30 : 45;
-        ctx.fillStyle = "#8b6b4a"; ctx.fillRect(this.x, this.y - yOffset, boxWidth, boxHeight);
-        ctx.strokeStyle = "#5c432a"; ctx.lineWidth = 3; ctx.strokeRect(this.x, this.y - yOffset, boxWidth, boxHeight);
-        if (currentTarget === this) { ctx.strokeStyle = "#ffcc00"; ctx.strokeRect(this.x-6, this.y-yOffset-6, boxWidth+12, boxHeight+12); }
-        ctx.fillStyle = "#000"; ctx.fillText(this.word.substring(0, this.typedIndex), this.x + (isMobile?20:30), this.y);
-        ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillText(this.word.substring(this.typedIndex), this.x + (isMobile?20:30) + ctx.measureText(this.word.substring(0, this.typedIndex)).width, this.y);
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
     }
 }
 
-function triggerErrorFlash() { flashOverlay.classList.add('flash-active'); setTimeout(() => flashOverlay.classList.remove('flash-active'), 100); }
+function playSound(type) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    const now = audioCtx.currentTime;
+
+    if (type === 'type') {
+        // Pickaxe clink
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(200, now + 0.05);
+        gainNode.gain.setValueAtTime(0.15, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+        osc.start(now); osc.stop(now + 0.05);
+    } else if (type === 'miss') {
+        // Dull clank
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(120, now);
+        gainNode.gain.setValueAtTime(0.2, now);
+        gainNode.gain.linearRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now); osc.stop(now + 0.1);
+    } else if (type === 'mined') {
+        // Heavy thud/chime
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(150, now + 0.2);
+        gainNode.gain.setValueAtTime(0.3, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now); osc.stop(now + 0.2);
+    } else if (type === 'gold') {
+        // High pitched gold ding
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.setValueAtTime(1200, now + 0.1); 
+        gainNode.gain.setValueAtTime(0.3, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+    } else if (type === 'blast') {
+        // Deep rumble explosion
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(50, now);
+        osc.frequency.exponentialRampToValueAtTime(10, now + 0.5);
+        gainNode.gain.setValueAtTime(0.5, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.start(now); osc.stop(now + 0.5);
+    }
+}
+
+// --- PRESET PARAGRAPHS ---
+const PRESETS = {
+    p1: "the shaft is dark and cold we dig deep for iron and coal swing the pick and break the rock load the cart and send it up",
+    p2: "strike the vein of gold with a heavy hammer the lantern flickers in the dusty draft keep the wheels rolling on the iron rails",
+    p3: "subterranean pressure builds as we descend into sector seven quartz and titanium deposits require explosive breaching secure the perimeter",
+    p4: "geological instability detected in the lower caverns evacuation protocols initiated abandon the drilling equipment and sprint for the surface elevator",
+    p5: "the motherlode glows with an eerie luminescence ancient geodes crack under pneumatic drills we have unearthed something that should have remained buried"
+};
+
+// --- UI ELEMENTS ---
+const ui = {
+    score: document.getElementById('scoreVal'), missed: document.getElementById('missedVal'),
+    combo: document.getElementById('comboVal'), wpm: document.getElementById('wpmVal'),
+    acc: document.getElementById('accVal'), flash: document.getElementById('flash-overlay'),
+    menu: document.getElementById('menu-layer'), inGame: document.getElementById('ui-layer'),
+    lbList: document.getElementById('leaderboard-list'), kb: document.getElementById('virtual-keyboard'),
+    customInput: document.getElementById('custom-text-input'), presetSelector: document.getElementById('preset-selector'),
+    tutorialModal: document.getElementById('tutorial-modal'), powerup: document.getElementById('powerupVal'),
+    mobileBlast: document.getElementById('mobile-blast-btn')
+};
+
+// --- KEYBOARD SETUP ---
+const keyMap = {
+    'q': 'f-pinky-l', 'a': 'f-pinky-l', 'z': 'f-pinky-l', 'w': 'f-ring-l', 's': 'f-ring-l', 'x': 'f-ring-l',
+    'e': 'f-mid-l', 'd': 'f-mid-l', 'c': 'f-mid-l', 'r': 'f-index-l', 't': 'f-index-l', 'f': 'f-index-l', 'g': 'f-index-l', 'v': 'f-index-l', 'b': 'f-index-l',
+    'y': 'f-index-r', 'u': 'f-index-r', 'h': 'f-index-r', 'j': 'f-index-r', 'n': 'f-index-r', 'm': 'f-index-r',
+    'i': 'f-mid-r', 'k': 'f-mid-r', 'o': 'f-ring-r', 'l': 'f-ring-r', 'p': 'f-pinky-r'
+};
+const rows = [ ['q','w','e','r','t','y','u','i','o','p'], ['a','s','d','f','g','h','j','k','l'], ['z','x','c','v','b','n','m'] ];
+
+rows.forEach((row, i) => {
+    let rowDiv = document.getElementById(`row-${i+1}`);
+    row.forEach(key => {
+        let btn = document.createElement('button');
+        btn.className = 'key'; btn.id = `key-${key}`; btn.innerText = key;
+        rowDiv.appendChild(btn);
+        btn.addEventListener('mousedown', (e) => { e.preventDefault(); handleInput(key); });
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(key); });
+    });
+});
+
+function updateTrainingColors() {
+    document.querySelectorAll('.key').forEach(btn => {
+        let key = btn.innerText.toLowerCase();
+        btn.style.borderColor = trainingMode ? `var(--${keyMap[key]})` : '#5c3a21';
+        btn.style.color = trainingMode ? `var(--${keyMap[key]})` : '#a68a77';
+    });
+}
+
+function updateKeyHighlight() {
+    document.querySelectorAll('.key').forEach(k => k.classList.remove('active-target'));
+    if (trainingMode && gameRunning) {
+        let nextChar = null;
+        if (currentTarget) nextChar = currentTarget.word[currentTarget.typedIndex];
+        else if (carts.length > 0) nextChar = [...carts].sort((a,b) => b.x - a.x)[0].word[0];
+        if (nextChar) {
+            let targetBtn = document.getElementById(`key-${nextChar}`);
+            if (targetBtn) targetBtn.classList.add('active-target');
+        }
+    }
+}
+
+// --- MENU LOGIC ---
+document.getElementById('tutorial-open-btn').addEventListener('click', () => { ui.tutorialModal.classList.remove('hidden'); });
+document.getElementById('tutorial-close-btn').addEventListener('click', () => { ui.tutorialModal.classList.add('hidden'); });
+document.getElementById('training-toggle').addEventListener('change', (e) => { trainingMode = e.target.checked; updateTrainingColors(); });
+ui.presetSelector.addEventListener('change', (e) => { ui.customInput.classList.toggle('hidden', e.target.value !== 'custom'); });
+
+// --- API / WORD GENERATION ---
+let wordBuffer = [];
+async function fetchWords() {
+    try {
+        let r = await fetch('https://dummyjson.com/quotes/random');
+        let d = await r.json();
+        wordBuffer.push(...d.quote.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 3 && w.length < 9));
+    } catch (e) { wordBuffer.push("rock", "stone", "iron", "gold", "mine"); }
+}
+
+function getWord() {
+    if(customBuffer.length > 0) return customBuffer.shift();
+    if(ui.presetSelector.value !== 'random') return "complete"; 
+    if (wordBuffer.length < 5) fetchWords();
+    return wordBuffer.length === 0 ? "loading" : wordBuffer.shift();
+}
+fetchWords();
+
+function loadPayload() {
+    let mode = ui.presetSelector.value;
+    if (mode === 'random') { customBuffer = []; return; }
+    let textToProcess = mode === 'custom' ? ui.customInput.value : PRESETS[mode];
+    customBuffer = textToProcess.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 0);
+}
+
+function calculateLanes() {
+    let availableHeight = canvas.height;
+    if (trainingMode || window.innerWidth < 800) { availableHeight -= 220; }
+    let startY = 100;
+    let gap = (availableHeight - startY) / 3;
+    lanes = [startY, startY + gap, startY + gap*2];
+}
+
+// --- GRAPHICS & OBJECTS ---
+class Particle {
+    constructor(x, y, color) { this.x = x; this.y = y; this.vx = (Math.random() - 0.5) * 15; this.vy = (Math.random() - 0.5) * 15; this.life = 1.0; this.color = color; }
+    update() { this.x += this.vx; this.y += this.vy; this.life -= 0.05; }
+    draw() { ctx.fillStyle = `rgba(${this.color}, ${this.life})`; ctx.fillRect(this.x, this.y, 6, 6); }
+}
+
+class Stamp {
+    constructor(x, y, text, color) { this.x = x; this.y = y; this.text = text; this.color = color; this.life = 1.0; this.scale = 2.0; this.rot = (Math.random()-0.5)*0.5;}
+    update() { if (this.scale > 1.0) this.scale -= 0.15; else this.life -= 0.05; }
+    draw() { ctx.save(); ctx.globalAlpha = Math.max(0, this.life); ctx.translate(this.x, this.y); ctx.rotate(this.rot); ctx.fillStyle = this.color; ctx.font = `bold ${30 * this.scale}px 'Rye'`; ctx.fillText(this.text, 0, 0); ctx.restore(); }
+}
+
+class MineCart {
+    constructor() { 
+        this.word = getWord(); 
+        this.x = -200; 
+        this.y = lanes[Math.floor(Math.random() * lanes.length)]; 
+        this.speed = (Math.random() * 0.4 + 0.6); 
+        this.typedIndex = 0; 
+        // 1 in 30 chance to be Golden
+        this.isGolden = Math.random() < (1 / 30); 
+    }
+    update(dt, mult) { this.x += this.speed * mult * (dt * 0.1); }
+    draw() {
+        if(this.word === "complete") return;
+        ctx.font = "26px 'Special Elite'";
+        let w = ctx.measureText(this.word).width + 40; let h = 50; let yOff = 40;
+        
+        ctx.fillStyle = "#222"; ctx.beginPath(); ctx.arc(this.x + 15, this.y - yOff + h, 8, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(this.x + w - 15, this.y - yOff + h, 8, 0, Math.PI*2); ctx.fill();
+        
+        if(this.isGolden) {
+            ctx.fillStyle = "#ffcc00"; 
+            ctx.fillRect(this.x, this.y - yOff, w, h);
+            ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.strokeRect(this.x, this.y - yOff, w, h);
+        } else {
+            ctx.fillStyle = "#4e342e"; 
+            ctx.fillRect(this.x, this.y - yOff, w, h);
+            ctx.strokeStyle = currentTarget === this ? "#ffaa00" : "#261a14"; ctx.lineWidth = currentTarget === this ? 4 : 2; ctx.strokeRect(this.x, this.y - yOff, w, h);
+            ctx.fillStyle = "#000"; ctx.fillRect(this.x+4, this.y-yOff+4, 4, 4); ctx.fillRect(this.x+w-8, this.y-yOff+4, 4, 4); ctx.fillRect(this.x+4, this.y-yOff+h-8, 4, 4); ctx.fillRect(this.x+w-8, this.y-yOff+h-8, 4, 4);
+        }
+
+        if (currentTarget === this) { ctx.shadowBlur = 15; ctx.shadowColor = "#ffaa00"; ctx.strokeRect(this.x, this.y - yOff, w, h); ctx.shadowBlur = 0; }
+        
+        ctx.fillStyle = this.isGolden ? "#000" : "#fff"; 
+        ctx.fillText(this.word.substring(0, this.typedIndex), this.x + 20, this.y - 6);
+        ctx.fillStyle = this.isGolden ? "rgba(0,0,0,0.3)" : "rgba(255, 255, 255, 0.3)"; 
+        ctx.fillText(this.word.substring(this.typedIndex), this.x + 20 + ctx.measureText(this.word.substring(0, this.typedIndex)).width, this.y - 6);
+    }
+}
+
+// --- LOGIC ---
+function spawnExplosion(x, y, rgbStr) { for(let i=0; i<30; i++) particles.push(new Particle(x, y, rgbStr)); }
+
+function triggerDynamite() {
+    if (!gameRunning || powerups <= 0 || carts.length === 0) return;
+    
+    playSound('blast');
+    powerups--;
+    ui.powerup.innerText = powerups;
+    
+    // Blow up all carts
+    carts.forEach(c => {
+        spawnExplosion(c.x + 50, c.y, "255, 60, 0"); 
+        score += 5; 
+    });
+    
+    ui.score.innerText = score;
+    ui.flash.classList.add('flash-active'); setTimeout(()=>ui.flash.classList.remove('flash-active'), 200);
+    stamps.push(new Stamp(canvas.width/2, canvas.height/2, "BLAST CLEARED!", "#ff5500"));
+    
+    carts = [];
+    currentTarget = null;
+    updateKeyHighlight();
+}
 
 function handleInput(key) {
-    if (!gameRunning || gameOver || key.length !== 1) return;
+    if (!gameRunning || key.length !== 1) return;
     totalKeys++;
     if (currentTarget) {
         if (currentTarget.word[currentTarget.typedIndex] === key) {
-            currentTarget.typedIndex++; correctKeys++; playSound('type');
+            currentTarget.typedIndex++; correctKeys++;
+            playSound('type');
             if (currentTarget.typedIndex === currentTarget.word.length) {
-                playSound('stamp'); stamps.push(new Stamp(currentTarget.x + 40, currentTarget.y + 10, "SHIPPED!", "#00ff00"));
-                boxes = boxes.filter(b => b !== currentTarget); currentTarget = null;
-                combo++; score += (10 * combo); scoreElement.innerText = score; comboElement.innerText = combo;
+                
+                if(currentTarget.isGolden) {
+                    playSound('gold');
+                    spawnExplosion(currentTarget.x + 50, currentTarget.y, "255, 255, 0"); 
+                    stamps.push(new Stamp(currentTarget.x + 20, currentTarget.y + 10, "+1 DYNAMITE", "#ffd700"));
+                    powerups++;
+                    ui.powerup.innerText = powerups;
+                } else {
+                    playSound('mined');
+                    spawnExplosion(currentTarget.x + 50, currentTarget.y, "255, 215, 0"); 
+                    stamps.push(new Stamp(currentTarget.x + 20, currentTarget.y + 10, "NICE!", "#ffd700"));
+                }
+                
+                carts = carts.filter(b => b !== currentTarget); currentTarget = null;
+                combo++; score += (10 * combo); ui.score.innerText = score; ui.combo.innerText = combo;
+                
+                if (customBuffer.length === 0 && ui.presetSelector.value !== 'random' && carts.length === 0) endGame(true);
             }
-        } else { playSound('error'); combo = 1; comboElement.innerText = combo; stamps.push(new Stamp(currentTarget.x + 20, currentTarget.y, "ERROR", "#ff3b30", true)); triggerErrorFlash(); }
+        } else { 
+            playSound('miss');
+            combo = 1; ui.combo.innerText = combo; ui.flash.classList.add('flash-active'); setTimeout(()=>ui.flash.classList.remove('flash-active'),100); stamps.push(new Stamp(currentTarget.x + 10, currentTarget.y, "MISS", "#d90429")); 
+        }
     } else {
-        let potentialTargets = boxes.filter(b => b.word[0] === key);
-        if (potentialTargets.length > 0) {
-            potentialTargets.sort((a, b) => b.x - a.x); currentTarget = potentialTargets[0]; currentTarget.typedIndex = 1; correctKeys++; playSound('type');
-        } else { playSound('error'); combo = 1; comboElement.innerText = combo; }
+        let match = carts.filter(b => b.word[0] === key).sort((a,b)=>b.x-a.x)[0];
+        if (match) { 
+            playSound('type');
+            currentTarget = match; currentTarget.typedIndex = 1; correctKeys++; 
+        } else { 
+            playSound('miss');
+            combo = 1; ui.combo.innerText = combo; 
+        }
     }
+    updateKeyHighlight();
 }
 
-window.addEventListener('keydown', (e) => { if (e.ctrlKey || e.altKey || e.metaKey) return; handleInput(e.key.toLowerCase()); });
-document.querySelectorAll('.key').forEach(btn => { btn.addEventListener('mousedown', (e) => { e.preventDefault(); handleInput(btn.innerText.toLowerCase()); }); });
+window.addEventListener('keydown', (e) => { 
+    if(e.key === 'Enter') { triggerDynamite(); return; }
+    if(!e.ctrlKey && e.key.length === 1) handleInput(e.key.toLowerCase()); 
+});
 
-function drawConveyorBelts(timestamp, globalSpeedMult) {
+ui.mobileBlast.addEventListener('click', triggerDynamite);
+
+// --- RENDER ---
+function drawTracks(timestamp, globalSpeedMult) {
     lanes.forEach(laneY => {
-        let beltTop = laneY - (isMobile ? 40 : 60); let beltHeight = isMobile ? 60 : 90;
-        ctx.fillStyle = "#1a1a1a"; ctx.fillRect(0, beltTop, canvas.width, beltHeight);
-        ctx.strokeStyle = "#111"; ctx.lineWidth = 4;
-        let offset = (timestamp * 0.15 * globalSpeedMult) % 60;
-        for(let i = -60; i < canvas.width + 60; i += 60) { ctx.beginPath(); ctx.moveTo(i + offset, beltTop); ctx.lineTo(i + offset - 10, beltTop + beltHeight); ctx.stroke(); }
+        let top = laneY - 45; let h = 60;
+        ctx.fillStyle = "#0c0805"; ctx.fillRect(0, top - 10, canvas.width, h + 20);
+        ctx.fillStyle = "#3e2723"; 
+        let offset = (timestamp * 0.1 * globalSpeedMult) % 100;
+        for(let i = -100; i < canvas.width + 100; i += 100) { ctx.fillRect(i + offset, top - 5, 20, h + 10); }
+        ctx.fillStyle = "#546e7a"; ctx.fillRect(0, top, canvas.width, 5); ctx.fillRect(0, top + h - 5, canvas.width, 5);
     });
 }
 
-function gameLoop(timestamp) {
+function gameLoop(ts) {
     if (!gameRunning) return;
-    let deltaTime = timestamp - lastTime; lastTime = timestamp;
-    ctx.fillStyle = "#0f0f11"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    let globalSpeedMult = 1.0 + (score * 0.0002) + (combo * 0.01);
-    drawConveyorBelts(timestamp, globalSpeedMult);
+    let dt = ts - lastTime; lastTime = ts;
+    ctx.fillStyle = "#140d07"; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    let elapsedMinutes = (performance.now() - shiftStartTime) / 60000;
-    wpmElement.innerText = elapsedMinutes > 0 ? Math.floor((correctKeys / 5) / elapsedMinutes) : 0;
-    accElement.innerText = totalKeys > 0 ? Math.floor((correctKeys / totalKeys) * 100) : 100;
+    let mins = (performance.now() - shiftStartTime) / 60000;
+    
+    let timeMult = mins * 0.3; 
+    let mult = 1.0 + (score * 0.0003) + timeMult;
+    
+    drawTracks(ts, mult);
 
-    spawnTimer += deltaTime;
-    if (spawnTimer > Math.max(1000, 2500 - (score * 0.3))) { boxes.push(new Box()); spawnTimer = 0; }
+    ui.wpm.innerText = mins > 0 ? Math.floor((correctKeys/5)/mins) : 0;
+    ui.acc.innerText = totalKeys > 0 ? Math.floor((correctKeys/totalKeys)*100) : 100;
 
-    for (let i = 0; i < boxes.length; i++) {
-        boxes[i].update(deltaTime, globalSpeedMult); boxes[i].draw();
-        if (boxes[i].x > canvas.width) {
-            if (currentTarget === boxes[i]) currentTarget = null;
-            boxes.splice(i, 1); i--; combo = 1; comboElement.innerText = combo; missed++; missedElement.innerText = missed; playSound('error'); triggerErrorFlash();
-            if (missed >= 10) {
-                gameOver = true; gameRunning = false;
-                if (score > highScore) { highScore = score; localStorage.setItem('typeTrailHighScore', highScore); highScoreElement.innerText = highScore; }
-                setTimeout(() => {
-                    let userName = prompt("SHIFT COMPLETE. ENTER ID FOR GLOBAL RECORDS:", "PLAYER");
-                    if (userName) saveScore(userName.substring(0, 10), score);
-                    uiLayer.style.display = 'none'; if(isMobile) virtualKeyboard.style.display = 'none'; menuLayer.style.display = 'flex';
-                    menuTitle.innerText = "TRAIL ENDED"; menuTitle.style.color = "#ff3b30";
-                    finalResultsDisplay.style.display = "block"; finalScoreDisplay.innerText = score; finalWpmDisplay.innerText = wpmElement.innerText; finalAccDisplay.innerText = accElement.innerText;
-                    startBtn.innerText = "TRY AGAIN";
-                }, 1000);
+    spawnTimer += dt;
+    
+    let spawnRate = Math.max(700, 2500 - (score * 0.4) - (mins * 400));
+    if (spawnTimer > spawnRate) { 
+        let newCart = new MineCart();
+        if(newCart.word !== "complete") carts.push(newCart); 
+        spawnTimer = 0; updateKeyHighlight(); 
+    }
+
+    for (let i = carts.length - 1; i >= 0; i--) {
+        carts[i].update(dt, mult); carts[i].draw();
+        
+        if (carts[i].x > canvas.width) {
+            if (currentTarget === carts[i]) currentTarget = null;
+            carts.splice(i, 1); combo = 1; ui.combo.innerText = combo; 
+            playSound('miss');
+            missed++; ui.missed.innerText = `${missed}/${MAX_MISSES}`;
+            ui.flash.classList.add('flash-active'); setTimeout(()=>ui.flash.classList.remove('flash-active'),100);
+            
+            if (missed >= MAX_MISSES) {
+                gameRunning = false;
+                if (!hasRevived) document.getElementById('revive-layer').classList.remove('hidden');
+                else endGame(false);
             }
+            updateKeyHighlight();
         }
     }
-    stamps.forEach((s, i) => { s.update(); s.draw(); if (s.life <= 0) stamps.splice(i, 1); });
+
+    particles.forEach((p, i) => { p.update(); p.draw(); if(p.life<=0) particles.splice(i,1); });
+    stamps.forEach((s, i) => { s.update(); s.draw(); if(s.life<=0) stamps.splice(i,1); });
+    
     requestAnimationFrame(gameLoop);
 }
 
-function startGame() {
-    initAudio(); if(audioCtx.state === 'suspended') audioCtx.resume();
-    score = 0; missed = 0; combo = 1; totalKeys = 0; correctKeys = 0; boxes = []; stamps = []; currentTarget = null; spawnTimer = 0; gameOver = false;
-    scoreElement.innerText = 0; missedElement.innerText = 0; comboElement.innerText = 1; menuLayer.style.display = 'none'; uiLayer.style.display = 'block';
-    if(isMobile) virtualKeyboard.style.display = 'flex';
-    gameRunning = true; lastTime = performance.now(); shiftStartTime = performance.now(); requestAnimationFrame(gameLoop);
+function endGame(victory) {
+    gameRunning = false;
+    ui.mobileBlast.classList.add('hidden'); 
+    setTimeout(() => {
+        let titleMsg = victory ? "TEXT COMPLETED!" : "GAME OVER!";
+        let titleColor = victory ? "#ffd700" : "#d90429";
+        
+        let name = prompt(`Game Over! Enter your name for the leaderboard:`, "GUEST");
+        if(name && score > 0) database.ref('leaderboard').push({name: name.substring(0,10), score: score, timestamp: Date.now()});
+        
+        ui.inGame.style.display = 'none'; ui.kb.style.display = 'none'; ui.menu.style.display = 'flex';
+        document.getElementById('menu-title').innerText = titleMsg;
+        document.getElementById('menu-title').style.color = titleColor;
+        document.getElementById('final-results').style.display = 'block';
+        document.getElementById('res-score').innerText = score;
+        document.getElementById('finalWpm').innerText = ui.wpm.innerText;
+        document.getElementById('finalAcc').innerText = ui.acc.innerText;
+        document.getElementById('start-btn').innerText = "PLAY AGAIN";
+    }, 1000);
 }
 
-startBtn.addEventListener('click', startGame);
-window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawConveyorBelts(0, 0); });
-drawConveyorBelts(0, 0);
+// --- START GAME ---
+document.getElementById('start-btn').addEventListener('click', () => {
+    initAudio(); // Required by browsers to unlock audio context on first click
+    loadPayload();
+    if(ui.presetSelector.value !== 'random' && customBuffer.length === 0) { alert("Text is empty! Please add custom text."); return; }
+    else if(ui.presetSelector.value === 'custom' && customBuffer.length > 0) { alert("Custom Text loaded! " + customBuffer.length + " words ready."); }
+    
+    calculateLanes();
+    score = 0; missed = 0; combo = 1; totalKeys = 0; correctKeys = 0; carts = []; stamps = []; particles = []; currentTarget = null;
+    hasRevived = false; 
+    powerups = 2; 
+    
+    ui.score.innerText = 0; ui.missed.innerText = `0/${MAX_MISSES}`; ui.combo.innerText = 1; ui.powerup.innerText = powerups;
+    ui.menu.style.display = 'none'; ui.inGame.style.display = 'block'; 
+    
+    if(trainingMode || window.innerWidth < 800) {
+        ui.kb.style.display = 'flex';
+        ui.mobileBlast.classList.remove('hidden');
+    }
+    
+    gameRunning = true; lastTime = performance.now(); shiftStartTime = performance.now();
+    requestAnimationFrame(gameLoop);
+});
+
+// --- AD REVIVE LOGIC ---
+document.getElementById('watch-ad-btn').addEventListener('click', () => {
+    document.getElementById('revive-layer').classList.add('hidden');
+    document.getElementById('sim-ad-layer').classList.remove('hidden');
+    let timeLeft = 5; document.getElementById('ad-timer').innerText = timeLeft;
+    let adInterval = setInterval(() => {
+        timeLeft--; document.getElementById('ad-timer').innerText = timeLeft;
+        if(timeLeft <= 0) {
+            clearInterval(adInterval);
+            document.getElementById('sim-ad-layer').classList.add('hidden');
+            hasRevived = true; missed = 0; ui.missed.innerText = `0/${MAX_MISSES}`; carts = []; currentTarget = null;
+            ui.inGame.style.display = 'block'; 
+            if(trainingMode || window.innerWidth < 800) { ui.kb.style.display = 'flex'; ui.mobileBlast.classList.remove('hidden'); }
+            gameRunning = true; lastTime = performance.now(); requestAnimationFrame(gameLoop);
+        }
+    }, 1000);
+});
+
+document.getElementById('skip-ad-btn').addEventListener('click', () => {
+    document.getElementById('revive-layer').classList.add('hidden');
+    endGame(false);
+});
+
+window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; if(gameRunning) calculateLanes(); });
+
+database.ref('leaderboard').orderByChild('score').limitToLast(5).on('value', snap => {
+    let s = []; snap.forEach(c => s.push(c.val())); s.reverse();
+    ui.lbList.innerHTML = s.length ? s.map((e,i) => `<div>${i+1}. ${e.name.substring(0,10).toUpperCase()} <span>${e.score}</span></div>`).join('') : '<div style="color:#a68a77">NO SCORES YET</div>';
+});
