@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>type.trail</title>
+    <title>type.trail // MINE_SHAFT</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Rye&family=Special+Elite&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
@@ -50,7 +50,7 @@
         <div class="sys-panel wood-border">
             <header>
                 <h1 id="menu-title" class="lantern-text">type.trail</h1>
-                <div class="sys-status">STATUS: [ <span style="color:#ffd700;">READY</span> ]</div>
+                <div class="sys-status">STATUS: [ <span style="color:#ffd700;">READY TO DIG</span> ]</div>
             </header>
             
             <div class="split-layout">
@@ -58,11 +58,6 @@
                     <div class="leaderboard-section">
                         <div class="section-header">LEADERBOARD</div>
                         <div id="leaderboard-list">LOADING SCORES...</div>
-                    </div>
-                    
-                    <div class="user-best-box">
-                        <span class="label">BEST SCORE</span>
-                        <span id="highScoreVal" class="lantern-text">000</span>
                     </div>
                 </div>
 
@@ -85,20 +80,12 @@
                             <option value="p3">Story 3: Deep Pressure</option>
                             <option value="p4">Story 4: Cave Collapse</option>
                             <option value="p5">Story 5: The Motherlode</option>
-                            <option value="custom">Custom Text</option>
+                            <option value="custom">Custom Text (Endless Loop)</option>
                         </select>
                         <textarea id="custom-text-input" class="hidden" placeholder="Paste your custom text here..."></textarea>
                     </div>
 
                     <button id="start-btn" class="mine-btn">START GAME</button>
-                </div>
-            </div>
-            
-            <div id="final-results" style="display: none;">
-                <div class="result-grid">
-                    <div class="res-card"><span>SCORE</span><div id="res-score">0</div></div>
-                    <div class="res-card"><span>SPEED</span><div id="finalWpm">0</div></div>
-                    <div class="res-card"><span>ACCURACY</span><div id="finalAcc">0</div>%</div>
                 </div>
             </div>
 
@@ -138,7 +125,7 @@
 
             <ul style="color: #d4c4b7; font-size: 14px; line-height: 1.6;">
                 <li><strong>OBJECTIVE:</strong> Type the words before they reach the edge. The game gets <strong>faster</strong> over time!</li>
-                <li><strong>GOLDEN CARTS:</strong> Type a Golden Cart to earn +1 Dynamite.</li>
+                <li><strong>GOLDEN CARTS:</strong> Type a rare Golden Cart to earn +1 Dynamite.</li>
                 <li><strong>DYNAMITE:</strong> Press <strong>ENTER</strong> to detonate and clear all carts on the screen.</li>
                 <li><strong>GAME OVER:</strong> If you miss 5 words, the game ends.</li>
             </ul>

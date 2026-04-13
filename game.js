@@ -25,29 +25,21 @@ let trainingMode = false; let lanes = [];
 let hasRevived = false; const MAX_MISSES = 5; 
 let powerups = 2; // START WITH 2 DYNAMITE
 
-// NEW: LOOPING BUFFERS
+// LOOPING BUFFERS
 let customBuffer = []; 
-let baseBuffer = []; // Stores the master copy of the payload for infinite looping
+let baseBuffer = []; 
 
 // --- AUDIO SYNTHESIZER ---
 let audioCtx = null;
-
 function initAudio() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
 }
-
 function playSound(type) {
     if (!audioCtx) return;
     const osc = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
-    osc.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    
+    osc.connect(gainNode); gainNode.connect(audioCtx.destination);
     const now = audioCtx.currentTime;
 
     if (type === 'type') {
@@ -142,15 +134,10 @@ async function fetchWords() {
 }
 
 function getWord() {
-    // NEW LOOPING LOGIC: If custom or preset, refill the buffer when empty
     if(ui.presetSelector.value !== 'random') {
-        if(customBuffer.length === 0) {
-            customBuffer = [...baseBuffer]; // Reload from master copy
-        }
+        if(customBuffer.length === 0) customBuffer = [...baseBuffer]; // Loop it!
         return customBuffer.shift(); 
     }
-    
-    // Default Random Logic
     if (wordBuffer.length < 5) fetchWords();
     return wordBuffer.length === 0 ? "loading" : wordBuffer.shift();
 }
@@ -159,11 +146,8 @@ fetchWords();
 function loadPayload() {
     let mode = ui.presetSelector.value;
     if (mode === 'random') { customBuffer = []; baseBuffer = []; return; }
-    
     let textToProcess = mode === 'custom' ? ui.customInput.value : PRESETS[mode];
-    // Save to the master copy
     baseBuffer = textToProcess.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 0);
-    // Fill the active queue
     customBuffer = [...baseBuffer];
 }
 
@@ -229,23 +213,14 @@ function spawnExplosion(x, y, rgbStr) { for(let i=0; i<30; i++) particles.push(n
 
 function triggerDynamite() {
     if (!gameRunning || powerups <= 0 || carts.length === 0) return;
+    playSound('blast'); powerups--; ui.powerup.innerText = powerups;
     
-    playSound('blast');
-    powerups--;
-    ui.powerup.innerText = powerups;
-    
-    carts.forEach(c => {
-        spawnExplosion(c.x + 50, c.y, "255, 60, 0"); 
-        score += 5; 
-    });
+    carts.forEach(c => { spawnExplosion(c.x + 50, c.y, "255, 60, 0"); score += 5; });
     
     ui.score.innerText = score;
     ui.flash.classList.add('flash-active'); setTimeout(()=>ui.flash.classList.remove('flash-active'), 200);
     stamps.push(new Stamp(canvas.width/2, canvas.height/2, "BLAST CLEARED!", "#ff5500"));
-    
-    carts = [];
-    currentTarget = null;
-    updateKeyHighlight();
+    carts = []; currentTarget = null; updateKeyHighlight();
 }
 
 function handleInput(key) {
@@ -253,40 +228,26 @@ function handleInput(key) {
     totalKeys++;
     if (currentTarget) {
         if (currentTarget.word[currentTarget.typedIndex] === key) {
-            currentTarget.typedIndex++; correctKeys++;
-            playSound('type');
+            currentTarget.typedIndex++; correctKeys++; playSound('type');
             if (currentTarget.typedIndex === currentTarget.word.length) {
-                
                 if(currentTarget.isGolden) {
-                    playSound('gold');
-                    spawnExplosion(currentTarget.x + 50, currentTarget.y, "255, 255, 0"); 
+                    playSound('gold'); spawnExplosion(currentTarget.x + 50, currentTarget.y, "255, 255, 0"); 
                     stamps.push(new Stamp(currentTarget.x + 20, currentTarget.y + 10, "+1 DYNAMITE", "#ffd700"));
-                    powerups++;
-                    ui.powerup.innerText = powerups;
+                    powerups++; ui.powerup.innerText = powerups;
                 } else {
-                    playSound('mined');
-                    spawnExplosion(currentTarget.x + 50, currentTarget.y, "255, 215, 0"); 
+                    playSound('mined'); spawnExplosion(currentTarget.x + 50, currentTarget.y, "255, 215, 0"); 
                     stamps.push(new Stamp(currentTarget.x + 20, currentTarget.y + 10, "NICE!", "#ffd700"));
                 }
-                
                 carts = carts.filter(b => b !== currentTarget); currentTarget = null;
                 combo++; score += (10 * combo); ui.score.innerText = score; ui.combo.innerText = combo;
-                
-                // Note: The endGame(true) check was removed so the game goes forever!
             }
         } else { 
-            playSound('miss');
-            combo = 1; ui.combo.innerText = combo; ui.flash.classList.add('flash-active'); setTimeout(()=>ui.flash.classList.remove('flash-active'),100); stamps.push(new Stamp(currentTarget.x + 10, currentTarget.y, "MISS", "#d90429")); 
+            playSound('miss'); combo = 1; ui.combo.innerText = combo; ui.flash.classList.add('flash-active'); setTimeout(()=>ui.flash.classList.remove('flash-active'),100); stamps.push(new Stamp(currentTarget.x + 10, currentTarget.y, "MISS", "#d90429")); 
         }
     } else {
         let match = carts.filter(b => b.word[0] === key).sort((a,b)=>b.x-a.x)[0];
-        if (match) { 
-            playSound('type');
-            currentTarget = match; currentTarget.typedIndex = 1; correctKeys++; 
-        } else { 
-            playSound('miss');
-            combo = 1; ui.combo.innerText = combo; 
-        }
+        if (match) { playSound('type'); currentTarget = match; currentTarget.typedIndex = 1; correctKeys++; } 
+        else { playSound('miss'); combo = 1; ui.combo.innerText = combo; }
     }
     updateKeyHighlight();
 }
@@ -295,7 +256,6 @@ window.addEventListener('keydown', (e) => {
     if(e.key === 'Enter') { triggerDynamite(); return; }
     if(!e.ctrlKey && e.key.length === 1) handleInput(e.key.toLowerCase()); 
 });
-
 ui.mobileBlast.addEventListener('click', triggerDynamite);
 
 // --- RENDER ---
@@ -316,7 +276,6 @@ function gameLoop(ts) {
     ctx.fillStyle = "#140d07"; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     let mins = (performance.now() - shiftStartTime) / 60000;
-    
     let timeMult = mins * 0.3; 
     let mult = 1.0 + (score * 0.0003) + timeMult;
     
@@ -326,11 +285,9 @@ function gameLoop(ts) {
     ui.acc.innerText = totalKeys > 0 ? Math.floor((correctKeys/totalKeys)*100) : 100;
 
     spawnTimer += dt;
-    
     let spawnRate = Math.max(700, 2500 - (score * 0.4) - (mins * 400));
     if (spawnTimer > spawnRate) { 
-        carts.push(new MineCart());
-        spawnTimer = 0; updateKeyHighlight(); 
+        carts.push(new MineCart()); spawnTimer = 0; updateKeyHighlight(); 
     }
 
     for (let i = carts.length - 1; i >= 0; i--) {
@@ -338,8 +295,7 @@ function gameLoop(ts) {
         
         if (carts[i].x > canvas.width) {
             if (currentTarget === carts[i]) currentTarget = null;
-            carts.splice(i, 1); combo = 1; ui.combo.innerText = combo; 
-            playSound('miss');
+            carts.splice(i, 1); combo = 1; ui.combo.innerText = combo; playSound('miss');
             missed++; ui.missed.innerText = `${missed}/${MAX_MISSES}`;
             ui.flash.classList.add('flash-active'); setTimeout(()=>ui.flash.classList.remove('flash-active'),100);
             
@@ -359,20 +315,15 @@ function gameLoop(ts) {
 }
 
 function endGame() {
-    gameRunning = false;
-    ui.mobileBlast.classList.add('hidden'); 
+    gameRunning = false; ui.mobileBlast.classList.add('hidden'); 
     setTimeout(() => {
         let name = prompt(`Game Over! Enter your name for the leaderboard:`, "GUEST");
         if(name && score > 0) database.ref('leaderboard').push({name: name.substring(0,10), score: score, timestamp: Date.now()});
         
         ui.inGame.style.display = 'none'; ui.kb.style.display = 'none'; ui.menu.style.display = 'flex';
-        document.getElementById('menu-title').innerText = "GAME OVER!";
-        document.getElementById('menu-title').style.color = "#d90429";
-        document.getElementById('final-results').style.display = 'block';
         document.getElementById('res-score').innerText = score;
         document.getElementById('finalWpm').innerText = ui.wpm.innerText;
         document.getElementById('finalAcc').innerText = ui.acc.innerText;
-        document.getElementById('start-btn').innerText = "PLAY AGAIN";
     }, 1000);
 }
 
@@ -384,16 +335,11 @@ document.getElementById('start-btn').addEventListener('click', () => {
     
     calculateLanes();
     score = 0; missed = 0; combo = 1; totalKeys = 0; correctKeys = 0; carts = []; stamps = []; particles = []; currentTarget = null;
-    hasRevived = false; 
-    powerups = 2; 
+    hasRevived = false; powerups = 2; 
     
     ui.score.innerText = 0; ui.missed.innerText = `0/${MAX_MISSES}`; ui.combo.innerText = 1; ui.powerup.innerText = powerups;
     ui.menu.style.display = 'none'; ui.inGame.style.display = 'block'; 
-    
-    if(trainingMode || window.innerWidth < 800) {
-        ui.kb.style.display = 'flex';
-        ui.mobileBlast.classList.remove('hidden');
-    }
+    if(trainingMode || window.innerWidth < 800) { ui.kb.style.display = 'flex'; ui.mobileBlast.classList.remove('hidden'); }
     
     gameRunning = true; lastTime = performance.now(); shiftStartTime = performance.now();
     requestAnimationFrame(gameLoop);
@@ -418,13 +364,34 @@ document.getElementById('watch-ad-btn').addEventListener('click', () => {
 });
 
 document.getElementById('skip-ad-btn').addEventListener('click', () => {
-    document.getElementById('revive-layer').classList.add('hidden');
-    endGame();
+    document.getElementById('revive-layer').classList.add('hidden'); endGame();
 });
 
 window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; if(gameRunning) calculateLanes(); });
 
+// --- CRASH-PROOF LEADERBOARD LOGIC ---
 database.ref('leaderboard').orderByChild('score').limitToLast(5).on('value', snap => {
-    let s = []; snap.forEach(c => s.push(c.val())); s.reverse();
-    ui.lbList.innerHTML = s.length ? s.map((e,i) => `<div>${i+1}. ${e.name.substring(0,10).toUpperCase()} <span>${e.score}</span></div>`).join('') : '<div style="color:#a68a77">NO SCORES YET</div>';
+    try {
+        let s = [];
+        snap.forEach(c => {
+            let data = c.val();
+            if (data && data.name != null && data.score != null) s.push(data);
+        });
+        s.reverse();
+        
+        if (s.length > 0) {
+            ui.lbList.innerHTML = s.map((e,i) => {
+                let safeName = String(e.name).substring(0, 10).toUpperCase();
+                return `<div>${i+1}. ${safeName} <span>${e.score}</span></div>`;
+            }).join('');
+        } else {
+            ui.lbList.innerHTML = '<div style="color:#a68a77">NO SCORES YET</div>';
+        }
+    } catch (error) {
+        console.error("Leaderboard Error:", error);
+        ui.lbList.innerHTML = '<div style="color:#d90429">UI ERROR</div>';
+    }
+}, (error) => {
+    console.error("Firebase Permission Error:", error);
+    ui.lbList.innerHTML = '<div style="color:#d90429">DATABASE BLOCKED (Check Firebase Rules)</div>';
 });
