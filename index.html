@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>type.trail</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="flash-overlay"></div>
+    
+    <div id="ui-layer" style="display: none;">
+        <div class="stats-panel">
+            <div class="brand-tag">type.trail // SYSTEM</div>
+            <div class="stat-group">
+                <div class="stat">SHIPPED: <span id="scoreVal">0</span></div>
+                <div class="stat missed">MISSED: <span id="missedVal">0</span>/10</div>
+            </div>
+            <div class="stat-group">
+                <div class="stat speed">WPM: <span id="wpmVal">0</span></div>
+                <div class="stat acc">ACC: <span id="accVal">100</span>%</div>
+                <div class="stat combo">MULT: x<span id="comboVal">1</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="menu-layer">
+        <div class="menu-box">
+            <h1 id="menu-title">type.trail</h1>
+            <p id="menu-subtitle">System ready. Prepare for order influx.</p>
+            
+            <h3 id="high-score-display">ALL-TIME HIGH: <span id="highScoreVal">0</span></h3>
+            
+            <div id="final-results" style="display: none;">
+                <h2 id="final-score">TOTAL SHIPPED: <span>0</span></h2>
+                <h3 id="final-stats">SPEED: <span id="finalWpm">0</span> WPM | ACCURACY: <span id="finalAcc">100</span>%</h3>
+            </div>
+
+            <div class="ad-space">
+                [ ADVERTISEMENT SPACE ]<br>
+                <span style="font-size: 14px;">(Ad network script goes here)</span>
+            </div>
+
+            <button id="start-btn">START SHIFT</button>
+        </div>
+    </div>
+
+    <div id="virtual-keyboard" style="display: none;">
+        <div class="kb-row">
+            <button class="key">q</button><button class="key">w</button><button class="key">e</button><button class="key">r</button><button class="key">t</button><button class="key">y</button><button class="key">u</button><button class="key">i</button><button class="key">o</button><button class="key">p</button>
+        </div>
+        <div class="kb-row">
+            <button class="key">a</button><button class="key">s</button><button class="key">d</button><button class="key">f</button><button class="key">g</button><button class="key">h</button><button class="key">j</button><button class="key">k</button><button class="key">l</button>
+        </div>
+        <div class="kb-row">
+            <button class="key">z</button><button class="key">x</button><button class="key">c</button><button class="key">v</button><button class="key">b</button><button class="key">n</button><button class="key">m</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+    <script src="game.js"></script>
+</body>
+</html>
