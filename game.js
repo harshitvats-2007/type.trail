@@ -21,9 +21,13 @@ let carts = []; let stamps = []; let particles = []; let currentTarget = null;
 let lastTime = 0; let spawnTimer = 0;
 let totalKeys = 0; let correctKeys = 0; let shiftStartTime = 0;
 
-let trainingMode = false; let customBuffer = []; let lanes = [];
+let trainingMode = false; let lanes = [];
 let hasRevived = false; const MAX_MISSES = 5; 
 let powerups = 2; // START WITH 2 DYNAMITE
+
+// NEW: LOOPING BUFFERS
+let customBuffer = []; 
+let baseBuffer = []; // Stores the master copy of the payload for infinite looping
 
 // --- AUDIO SYNTHESIZER ---
 let audioCtx = null;
@@ -47,44 +51,15 @@ function playSound(type) {
     const now = audioCtx.currentTime;
 
     if (type === 'type') {
-        // Pickaxe clink
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(600, now);
-        osc.frequency.exponentialRampToValueAtTime(200, now + 0.05);
-        gainNode.gain.setValueAtTime(0.15, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-        osc.start(now); osc.stop(now + 0.05);
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(200, now + 0.05); gainNode.gain.setValueAtTime(0.15, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.05); osc.start(now); osc.stop(now + 0.05);
     } else if (type === 'miss') {
-        // Dull clank
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(120, now);
-        gainNode.gain.setValueAtTime(0.2, now);
-        gainNode.gain.linearRampToValueAtTime(0.01, now + 0.1);
-        osc.start(now); osc.stop(now + 0.1);
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(120, now); gainNode.gain.setValueAtTime(0.2, now); gainNode.gain.linearRampToValueAtTime(0.01, now + 0.1); osc.start(now); osc.stop(now + 0.1);
     } else if (type === 'mined') {
-        // Heavy thud/chime
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(300, now);
-        osc.frequency.exponentialRampToValueAtTime(150, now + 0.2);
-        gainNode.gain.setValueAtTime(0.3, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-        osc.start(now); osc.stop(now + 0.2);
+        osc.type = 'sine'; osc.frequency.setValueAtTime(300, now); osc.frequency.exponentialRampToValueAtTime(150, now + 0.2); gainNode.gain.setValueAtTime(0.3, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2); osc.start(now); osc.stop(now + 0.2);
     } else if (type === 'gold') {
-        // High pitched gold ding
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(800, now);
-        osc.frequency.setValueAtTime(1200, now + 0.1); 
-        gainNode.gain.setValueAtTime(0.3, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-        osc.start(now); osc.stop(now + 0.3);
+        osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.setValueAtTime(1200, now + 0.1); gainNode.gain.setValueAtTime(0.3, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3); osc.start(now); osc.stop(now + 0.3);
     } else if (type === 'blast') {
-        // Deep rumble explosion
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(50, now);
-        osc.frequency.exponentialRampToValueAtTime(10, now + 0.5);
-        gainNode.gain.setValueAtTime(0.5, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-        osc.start(now); osc.stop(now + 0.5);
+        osc.type = 'square'; osc.frequency.setValueAtTime(50, now); osc.frequency.exponentialRampToValueAtTime(10, now + 0.5); gainNode.gain.setValueAtTime(0.5, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5); osc.start(now); osc.stop(now + 0.5);
     }
 }
 
@@ -167,8 +142,15 @@ async function fetchWords() {
 }
 
 function getWord() {
-    if(customBuffer.length > 0) return customBuffer.shift();
-    if(ui.presetSelector.value !== 'random') return "complete"; 
+    // NEW LOOPING LOGIC: If custom or preset, refill the buffer when empty
+    if(ui.presetSelector.value !== 'random') {
+        if(customBuffer.length === 0) {
+            customBuffer = [...baseBuffer]; // Reload from master copy
+        }
+        return customBuffer.shift(); 
+    }
+    
+    // Default Random Logic
     if (wordBuffer.length < 5) fetchWords();
     return wordBuffer.length === 0 ? "loading" : wordBuffer.shift();
 }
@@ -176,9 +158,13 @@ fetchWords();
 
 function loadPayload() {
     let mode = ui.presetSelector.value;
-    if (mode === 'random') { customBuffer = []; return; }
+    if (mode === 'random') { customBuffer = []; baseBuffer = []; return; }
+    
     let textToProcess = mode === 'custom' ? ui.customInput.value : PRESETS[mode];
-    customBuffer = textToProcess.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 0);
+    // Save to the master copy
+    baseBuffer = textToProcess.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(w => w.length > 0);
+    // Fill the active queue
+    customBuffer = [...baseBuffer];
 }
 
 function calculateLanes() {
@@ -209,12 +195,10 @@ class MineCart {
         this.y = lanes[Math.floor(Math.random() * lanes.length)]; 
         this.speed = (Math.random() * 0.4 + 0.6); 
         this.typedIndex = 0; 
-        // 1 in 30 chance to be Golden
         this.isGolden = Math.random() < (1 / 30); 
     }
     update(dt, mult) { this.x += this.speed * mult * (dt * 0.1); }
     draw() {
-        if(this.word === "complete") return;
         ctx.font = "26px 'Special Elite'";
         let w = ctx.measureText(this.word).width + 40; let h = 50; let yOff = 40;
         
@@ -250,7 +234,6 @@ function triggerDynamite() {
     powerups--;
     ui.powerup.innerText = powerups;
     
-    // Blow up all carts
     carts.forEach(c => {
         spawnExplosion(c.x + 50, c.y, "255, 60, 0"); 
         score += 5; 
@@ -289,7 +272,7 @@ function handleInput(key) {
                 carts = carts.filter(b => b !== currentTarget); currentTarget = null;
                 combo++; score += (10 * combo); ui.score.innerText = score; ui.combo.innerText = combo;
                 
-                if (customBuffer.length === 0 && ui.presetSelector.value !== 'random' && carts.length === 0) endGame(true);
+                // Note: The endGame(true) check was removed so the game goes forever!
             }
         } else { 
             playSound('miss');
@@ -346,8 +329,7 @@ function gameLoop(ts) {
     
     let spawnRate = Math.max(700, 2500 - (score * 0.4) - (mins * 400));
     if (spawnTimer > spawnRate) { 
-        let newCart = new MineCart();
-        if(newCart.word !== "complete") carts.push(newCart); 
+        carts.push(new MineCart());
         spawnTimer = 0; updateKeyHighlight(); 
     }
 
@@ -364,7 +346,7 @@ function gameLoop(ts) {
             if (missed >= MAX_MISSES) {
                 gameRunning = false;
                 if (!hasRevived) document.getElementById('revive-layer').classList.remove('hidden');
-                else endGame(false);
+                else endGame();
             }
             updateKeyHighlight();
         }
@@ -376,19 +358,16 @@ function gameLoop(ts) {
     requestAnimationFrame(gameLoop);
 }
 
-function endGame(victory) {
+function endGame() {
     gameRunning = false;
     ui.mobileBlast.classList.add('hidden'); 
     setTimeout(() => {
-        let titleMsg = victory ? "TEXT COMPLETED!" : "GAME OVER!";
-        let titleColor = victory ? "#ffd700" : "#d90429";
-        
         let name = prompt(`Game Over! Enter your name for the leaderboard:`, "GUEST");
         if(name && score > 0) database.ref('leaderboard').push({name: name.substring(0,10), score: score, timestamp: Date.now()});
         
         ui.inGame.style.display = 'none'; ui.kb.style.display = 'none'; ui.menu.style.display = 'flex';
-        document.getElementById('menu-title').innerText = titleMsg;
-        document.getElementById('menu-title').style.color = titleColor;
+        document.getElementById('menu-title').innerText = "GAME OVER!";
+        document.getElementById('menu-title').style.color = "#d90429";
         document.getElementById('final-results').style.display = 'block';
         document.getElementById('res-score').innerText = score;
         document.getElementById('finalWpm').innerText = ui.wpm.innerText;
@@ -399,10 +378,9 @@ function endGame(victory) {
 
 // --- START GAME ---
 document.getElementById('start-btn').addEventListener('click', () => {
-    initAudio(); // Required by browsers to unlock audio context on first click
+    initAudio(); 
     loadPayload();
-    if(ui.presetSelector.value !== 'random' && customBuffer.length === 0) { alert("Text is empty! Please add custom text."); return; }
-    else if(ui.presetSelector.value === 'custom' && customBuffer.length > 0) { alert("Custom Text loaded! " + customBuffer.length + " words ready."); }
+    if(ui.presetSelector.value !== 'random' && baseBuffer.length === 0) { alert("Text is empty! Please add custom text."); return; }
     
     calculateLanes();
     score = 0; missed = 0; combo = 1; totalKeys = 0; correctKeys = 0; carts = []; stamps = []; particles = []; currentTarget = null;
@@ -441,7 +419,7 @@ document.getElementById('watch-ad-btn').addEventListener('click', () => {
 
 document.getElementById('skip-ad-btn').addEventListener('click', () => {
     document.getElementById('revive-layer').classList.add('hidden');
-    endGame(false);
+    endGame();
 });
 
 window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; if(gameRunning) calculateLanes(); });
