@@ -5,15 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>type.trail</title>
     <link rel="stylesheet" href="style.css">
+    
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-</head>
+
+    </head>
 <body>
     <div id="flash-overlay"></div>
     
     <div id="ui-layer" style="display: none;">
         <div class="stats-panel">
-            <div class="brand-tag">type.trail // SYSTEM</div>
+            <div class="brand-tag">type.trail // SYS</div>
             <div class="stat-group">
                 <div class="stat">SHIPPED: <span id="scoreVal">0</span></div>
                 <div class="stat missed">MISSED: <span id="missedVal">0</span>/10</div>
@@ -31,8 +33,8 @@
             <h1 id="menu-title">type.trail</h1>
             
             <div id="leaderboard-container">
-                <p style="color: #ffcc00; margin-bottom: 5px; font-size: 14px;">GLOBAL TOP 5</p>
-                <div id="leaderboard-list">Loading rankings...</div>
+                <p style="color: #ffcc00; margin-bottom: 5px; font-size: 14px; letter-spacing: 1px;">GLOBAL TOP 5</p>
+                <div id="leaderboard-list">Fetching rankings...</div>
             </div>
 
             <h3 id="high-score-display">YOUR BEST: <span id="highScoreVal">0</span></h3>

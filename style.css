@@ -1,68 +1,70 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>type.trail</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-</head>
-<body>
-    <div id="flash-overlay"></div>
-    
-    <div id="ui-layer" style="display: none;">
-        <div class="stats-panel">
-            <div class="brand-tag">type.trail // SYSTEM</div>
-            <div class="stat-group">
-                <div class="stat">SHIPPED: <span id="scoreVal">0</span></div>
-                <div class="stat missed">MISSED: <span id="missedVal">0</span>/10</div>
-            </div>
-            <div class="stat-group">
-                <div class="stat speed">WPM: <span id="wpmVal">0</span></div>
-                <div class="stat acc">ACC: <span id="accVal">100</span>%</div>
-                <div class="stat combo">MULT: x<span id="comboVal">1</span></div>
-            </div>
-        </div>
-    </div>
+body, html {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background-color: #0f0f11; 
+    font-family: 'Impact', 'Arial Black', sans-serif;
+    text-transform: uppercase; user-select: none;
+    touch-action: manipulation; 
+}
 
-    <div id="menu-layer">
-        <div class="menu-box">
-            <h1 id="menu-title">type.trail</h1>
-            
-            <div id="leaderboard-container">
-                <p style="color: #ffcc00; margin-bottom: 5px; font-size: 14px;">GLOBAL TOP 5</p>
-                <div id="leaderboard-list">Loading rankings...</div>
-            </div>
+#gameCanvas { display: block; width: 100%; height: 100%; }
 
-            <h3 id="high-score-display">YOUR BEST: <span id="highScoreVal">0</span></h3>
-            
-            <div id="final-results" style="display: none;">
-                <h2 id="final-score">TOTAL SHIPPED: <span>0</span></h2>
-                <h3 id="final-stats">SPEED: <span id="finalWpm">0</span> WPM | ACCURACY: <span id="finalAcc">100</span>%</h3>
-            </div>
+/* --- LEADERBOARD STYLE --- */
+#leaderboard-container {
+    background: #000;
+    border: 1px solid #333;
+    padding: 10px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    min-height: 100px;
+    text-align: left;
+}
 
-            <div class="ad-space">
-                [ ADVERTISEMENT SPACE ]
-            </div>
+#leaderboard-list div {
+    display: flex;
+    justify-content: space-between;
+    color: #fff;
+    border-bottom: 1px solid #222;
+    padding: 4px 0;
+    font-family: monospace;
+}
 
-            <button id="start-btn">START SHIFT</button>
-        </div>
-    </div>
+#leaderboard-list span { color: #00ff00; font-weight: bold; }
 
-    <div id="virtual-keyboard" style="display: none;">
-        <div class="kb-row">
-            <button class="key">q</button><button class="key">w</button><button class="key">e</button><button class="key">r</button><button class="key">t</button><button class="key">y</button><button class="key">u</button><button class="key">i</button><button class="key">o</button><button class="key">p</button>
-        </div>
-        <div class="kb-row">
-            <button class="key">a</button><button class="key">s</button><button class="key">d</button><button class="key">f</button><button class="key">g</button><button class="key">h</button><button class="key">j</button><button class="key">k</button><button class="key">l</button>
-        </div>
-        <div class="kb-row">
-            <button class="key">z</button><button class="key">x</button><button class="key">c</button><button class="key">v</button><button class="key">b</button><button class="key">n</button><button class="key">m</button>
-        </div>
-    </div>
+/* --- HUD UI --- */
+#ui-layer { position: absolute; top: 20px; left: 20px; width: calc(100% - 40px); z-index: 10; pointer-events: none; }
+.stats-panel { display: flex; justify-content: space-between; align-items: center; background: #1a1a1a; border: 3px solid #e0e0e0; padding: 10px 20px; box-shadow: 6px 6px 0px #ff3b30; }
+.stat-group { display: flex; gap: 20px; }
+.brand-tag { color: #ff3b30; font-size: 18px; letter-spacing: 2px; border-right: 2px solid #333; padding-right: 15px; text-transform: lowercase; }
+.stat { color: #fff; font-size: 20px; }
+.stat.missed { color: #ff3b30; }
+.stat.combo { color: #ffcc00; }
+.stat.speed { color: #00ffcc; }
+.stat.acc { color: #cc66ff; }
 
-    <canvas id="gameCanvas"></canvas>
-    <script src="game.js"></script>
-</body>
-</html>
+#flash-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 0, 0, 0); pointer-events: none; transition: background 0.1s; z-index: 5; }
+.flash-active { background: rgba(255, 0, 0, 0.4) !important; transition: none !important; }
+
+/* --- MENUS --- */
+#menu-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 15, 17, 0.95); display: flex; justify-content: center; align-items: center; z-index: 20; }
+.menu-box { background: #1a1a1a; border: 4px solid #fff; padding: 30px; text-align: center; box-shadow: 10px 10px 0px #ffcc00; width: 380px; max-width: 90vw; }
+#menu-title { color: #ffcc00; font-size: 55px; margin: 0; text-transform: lowercase; letter-spacing: -2px; }
+#high-score-display { color: #00ff00; font-size: 18px; margin-bottom: 15px; border: 1px dashed #00ff00; padding: 5px; }
+
+#final-score { color: #fff; font-size: 24px; margin: 10px 0; }
+#final-stats { color: #00ffcc; font-size: 16px; margin-bottom: 15px; background: #222; padding: 8px; }
+
+.ad-space { background: #333; border: 2px dashed #666; color: #888; padding: 25px 10px; margin-bottom: 15px; font-size: 12px; }
+button#start-btn { background: #ffcc00; color: #000; border: none; padding: 15px 30px; font-size: 22px; font-family: 'Impact'; cursor: pointer; width: 100%; text-transform: uppercase; }
+
+/* --- KEYBOARD --- */
+#virtual-keyboard { position: absolute; bottom: 10px; left: 0; width: 100%; z-index: 15; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.kb-row { display: flex; justify-content: center; gap: 3px; width: 98%; }
+.key { background: rgba(30, 30, 30, 0.9); border: 1px solid #555; color: #fff; font-size: 20px; padding: 15px 0; flex: 1; max-width: 45px; border-radius: 4px; font-family: 'Impact'; }
+.key:active { background: #ffcc00; color: #000; }
+
+@media (max-width: 600px) {
+    .stats-panel { flex-direction: column; height: auto; padding: 5px; }
+    .stat-group { gap: 10px; }
+    .brand-tag { border-right: none; padding: 0; }
+    #menu-title { font-size: 40px; }
+}
