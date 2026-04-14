@@ -211,6 +211,20 @@ class MineCart {
 // --- LOGIC ---
 function spawnExplosion(x, y, rgbStr) { for(let i=0; i<30; i++) particles.push(new Particle(x, y, rgbStr)); }
 
+// NEW HELPER: Handles exploding the cart and giving points
+function completeTarget() {
+    if(currentTarget.isGolden) {
+        playSound('gold'); spawnExplosion(currentTarget.x + 50, currentTarget.y, "255, 255, 0"); 
+        stamps.push(new Stamp(currentTarget.x + 20, currentTarget.y + 10, "+1 DYNAMITE", "#ffd700"));
+        powerups++; ui.powerup.innerText = powerups;
+    } else {
+        playSound('mined'); spawnExplosion(currentTarget.x + 50, currentTarget.y, "255, 215, 0"); 
+        stamps.push(new Stamp(currentTarget.x + 20, currentTarget.y + 10, "NICE!", "#ffd700"));
+    }
+    carts = carts.filter(b => b !== currentTarget); currentTarget = null;
+    combo++; score += (10 * combo); ui.score.innerText = score; ui.combo.innerText = combo;
+}
+
 function triggerDynamite() {
     if (!gameRunning || powerups <= 0 || carts.length === 0) return;
     playSound('blast'); powerups--; ui.powerup.innerText = powerups;
@@ -230,23 +244,21 @@ function handleInput(key) {
         if (currentTarget.word[currentTarget.typedIndex] === key) {
             currentTarget.typedIndex++; correctKeys++; playSound('type');
             if (currentTarget.typedIndex === currentTarget.word.length) {
-                if(currentTarget.isGolden) {
-                    playSound('gold'); spawnExplosion(currentTarget.x + 50, currentTarget.y, "255, 255, 0"); 
-                    stamps.push(new Stamp(currentTarget.x + 20, currentTarget.y + 10, "+1 DYNAMITE", "#ffd700"));
-                    powerups++; ui.powerup.innerText = powerups;
-                } else {
-                    playSound('mined'); spawnExplosion(currentTarget.x + 50, currentTarget.y, "255, 215, 0"); 
-                    stamps.push(new Stamp(currentTarget.x + 20, currentTarget.y + 10, "NICE!", "#ffd700"));
-                }
-                carts = carts.filter(b => b !== currentTarget); currentTarget = null;
-                combo++; score += (10 * combo); ui.score.innerText = score; ui.combo.innerText = combo;
+                completeTarget(); // Blow up the cart
             }
         } else { 
             playSound('miss'); combo = 1; ui.combo.innerText = combo; ui.flash.classList.add('flash-active'); setTimeout(()=>ui.flash.classList.remove('flash-active'),100); stamps.push(new Stamp(currentTarget.x + 10, currentTarget.y, "MISS", "#d90429")); 
         }
     } else {
         let match = carts.filter(b => b.word[0] === key).sort((a,b)=>b.x-a.x)[0];
-        if (match) { playSound('type'); currentTarget = match; currentTarget.typedIndex = 1; correctKeys++; } 
+        if (match) { 
+            playSound('type'); currentTarget = match; currentTarget.typedIndex = 1; correctKeys++; 
+            
+            // FIX: If the word is only 1 letter long, blow it up immediately!
+            if (currentTarget.typedIndex === currentTarget.word.length) {
+                completeTarget();
+            }
+        } 
         else { playSound('miss'); combo = 1; ui.combo.innerText = combo; }
     }
     updateKeyHighlight();
